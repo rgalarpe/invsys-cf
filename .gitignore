@@ -30,3 +30,6 @@ dist-ssr
 .env*
 !.env.example
 .env
+
+#Hidden MD files
+PROJECTNOTES.md
