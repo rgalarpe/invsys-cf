@@ -33,3 +33,9 @@ dist-ssr
 
 #Hidden MD files
 PROJECTNOTES.md
+Temp.md
+
+#Other
+cookies.txt
+db/*.local.sql
+db/query.sql

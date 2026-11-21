@@ -1,13 +1,13 @@
-export default {
-  fetch(request, env) {
-    const url = new URL(request.url);
+import { Hono } from 'hono';
+import auth from './auth.js';
 
-    if (url.pathname.startsWith("/api/")) {
-      return Response.json({
-        name: "Cloudflare",
-      });
-    }
+const app = new Hono();
 
-		return new Response(null, { status: 404 });
-  },
-}
+app.get('/api/health', async (c) => {
+  const row = await c.env.DB.prepare('SELECT COUNT(*) AS n FROM products').first();
+  return c.json({ ok: true, products: row.n });
+});
+
+app.route('/api/auth', auth);
+
+export default app;
