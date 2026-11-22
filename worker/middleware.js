@@ -15,6 +15,15 @@ export async function requireAuth(c, next) {
   ).bind(await sha256Hex(token)).first();
 
   if (!user) return c.json({ error: 'Not signed in' }, 401);
+
+  // A temporary password only lets you reach the auth routes (me, change-password)
+  if (user.must_change_password && !c.req.path.startsWith('/api/auth/')) {
+    return c.json(
+      { error: 'You must change your password first', code: 'PASSWORD_CHANGE_REQUIRED' },
+      403
+    );
+  }
+
   c.set('user', user);
   await next();
 }

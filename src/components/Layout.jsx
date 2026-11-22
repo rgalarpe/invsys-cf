@@ -1,5 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom';
-import { LayoutDashboard, Package, LogOut } from 'lucide-react';
+import { Link, NavLink, Outlet } from 'react-router-dom';
+import { LayoutDashboard, Package, Users, KeyRound, LogOut } from 'lucide-react';
 import { useAuth } from '../auth.jsx';
 
 const ICON = { size: 18, strokeWidth: 1.75 };
@@ -17,13 +17,18 @@ export default function Layout() {
 
         <nav>
           {user.role === 'admin' && (
-            <NavLink to="/admin" className="nav-link">
+            <NavLink to="/admin" end className="nav-link">
               <LayoutDashboard {...ICON} /> Dashboard
             </NavLink>
           )}
           <NavLink to="/inventory" className="nav-link">
             <Package {...ICON} /> Inventory
           </NavLink>
+          {user.role === 'admin' && (
+            <NavLink to="/admin/users" className="nav-link">
+              <Users {...ICON} /> Users
+            </NavLink>
+          )}
         </nav>
 
         <div className="sidebar-foot">
@@ -31,6 +36,9 @@ export default function Layout() {
             <strong>{user.name}</strong>
             <span>{user.role}</span>
           </div>
+          <Link to="/change-password" className="signout">
+            <KeyRound size={16} strokeWidth={1.75} /> Change password
+          </Link>
           <button className="signout" onClick={logout}>
             <LogOut size={16} strokeWidth={1.75} /> Sign out
           </button>

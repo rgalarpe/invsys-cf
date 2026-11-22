@@ -244,3 +244,44 @@ td.r { color: var(--text); font-weight: 600; }
 .chart-box { height: 260px; }
 .form-grid { display: grid; grid-template-columns: 160px 1fr auto; gap: 12px; align-items: end; }
 @media (max-width: 700px) { .form-grid { grid-template-columns: 1fr; } }
+
+
+/* ---------- Modal ---------- */
+.modal {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-card);
+  padding: 0;
+  width: min(480px, calc(100vw - 32px));
+  background: var(--surface);
+  color: var(--text-2);
+}
+.modal::backdrop { background: rgba(18, 20, 26, 0.4); }
+.modal-body { padding: 24px; display: flex; flex-direction: column; gap: 16px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.card.span-2 .form-grid { grid-template-columns: 1fr; }
+@media (max-width: 500px) { .field-row { grid-template-columns: 1fr; } }
+
+
+/* ---------- Void workflow ---------- */
+.alert-success {
+  background: var(--success-bg); color: var(--success-ink);
+  border-radius: var(--radius-control);
+  padding: 10px 14px; font-weight: 500;
+}
+.row-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.btn-sm { padding: 6px 12px; font-size: 13px; }
+.btn-secondary.danger { color: var(--danger-ink); }
+
+/* ---------- Users and passwords ---------- */
+a.signout { text-decoration: none; }
+.pw-row { display: flex; gap: 8px; }
+.pw-row .input { flex: 1; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+.secret {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 16px; color: var(--text); word-break: break-all;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  padding: 12px 14px;
+}

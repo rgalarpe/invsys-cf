@@ -5,6 +5,7 @@ import { STATUS } from '../status.js';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { money, shortDate } from '../format.js';
+import ItemFormModal from '../components/ItemFormModal.jsx';
 
 
 
@@ -36,6 +37,7 @@ export default function InventoryPage() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [adding, setAdding] = useState(false);
 
   // Page resets to 1 automatically whenever any filter changes
   const filterKey = `${q}|${status}|${category}`;
@@ -89,7 +91,9 @@ export default function InventoryPage() {
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          {user.role === 'admin' && <button className="btn-primary">+ Add item</button>}
+          {user.role === 'admin' && (
+            <button className="btn-primary" onClick={() => setAdding(true)}>+ Add item</button>
+          )}
         </div>
       </div>
 
@@ -183,6 +187,26 @@ export default function InventoryPage() {
           </div>
         )}
       </div>
+      {user.role === 'admin' && (
+        <ItemFormModal
+          open={adding}
+          mode="create"
+          categories={categories}
+          onCategoryCreated={(c) => setCategories((prev) => [...prev, c])}
+          onClose={() => setAdding(false)}
+          onSaved={(created) => navigate(`/inventory/${created.id}`)}
+        />
+      )}
+      {user.role === 'admin' && (
+        <ItemFormModal
+          open={adding}
+          mode="create"
+          categories={categories}
+          onCategoryCreated={(c) => setCategories((prev) => [...prev, c])}
+          onClose={() => setAdding(false)}
+          onSaved={(created) => navigate(`/inventory/${created.id}`)}
+        />
+      )}
     </>
   );
 }

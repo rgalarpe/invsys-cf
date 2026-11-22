@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
-import { verifyPassword, PBKDF2_ITERATIONS } from './lib/password.js';
+import { verifyPassword, hashPassword, PBKDF2_ITERATIONS } from './lib/password.js';
+import { checkPassword } from './lib/password-policy.js';
 import { newToken, sha256Hex, SESSION_COOKIE, SESSION_DAYS } from './lib/session.js';
 import { requireAuth } from './middleware.js';
 
@@ -114,5 +115,76 @@ auth.post('/logout', async (c) => {
 });
 
 auth.get('/me', requireAuth, (c) => c.json({ user: c.get('user') }));
+
+
+auth.post('/change-password', requireAuth, async (c) => {
+  const user = c.get('user');
+  const body = await c.req.json().catch(() => null);
+  const current = typeof body?.current_password === 'string' ? body.current_password : '';
+  const next = typeof body?.new_password === 'string' ? body.new_password : '';
+
+  if (!current || current.length > 200) return c.json({ error: 'Enter your current password' }, 400);
+  const problem = checkPassword(next, { email: user.email });
+  if (problem) return c.json({ error: problem }, 400);
+  if (next === current) {
+    return c.json({ error: 'Choose a password different from your current one' }, 400);
+  }
+
+  const db = c.env.DB;
+  const key = `chg|${user.id}`;
+
+  const attempt = await db
+    .prepare(
+      `SELECT count FROM login_attempts
+        WHERE key = ?1 AND window_start > datetime('now', '-15 minutes')`
+    )
+    .bind(key)
+    .first();
+  if (attempt && attempt.count >= MAX_FAILS) {
+    return c.json({ error: 'Too many attempts. Try again in a few minutes.' }, 429);
+  }
+
+  const row = await db
+    .prepare('SELECT password_hash, password_salt, password_iterations FROM users WHERE id = ?1')
+    .bind(user.id)
+    .first();
+  const ok = await verifyPassword(current, {
+    hash: row.password_hash,
+    salt: row.password_salt,
+    iterations: row.password_iterations,
+  });
+
+  if (!ok) {
+    await db
+      .prepare(
+        `INSERT INTO login_attempts (key, count, window_start)
+         VALUES (?1, 1, datetime('now'))
+         ON CONFLICT(key) DO UPDATE SET
+           count = CASE WHEN window_start > datetime('now', '-15 minutes') THEN count + 1 ELSE 1 END,
+           window_start = CASE WHEN window_start > datetime('now', '-15 minutes') THEN window_start ELSE datetime('now') END`
+      )
+      .bind(key)
+      .run();
+    return c.json({ error: 'Current password is incorrect' }, 400);
+  }
+
+  const { hash, salt, iterations } = await hashPassword(next);
+  const sid = await sha256Hex(getCookie(c, SESSION_COOKIE));
+
+  // Update the password, sign out every OTHER session, and clear failed attempts
+  await db.batch([
+    db
+      .prepare(
+        `UPDATE users
+            SET password_hash = ?1, password_salt = ?2, password_iterations = ?3, must_change_password = 0
+          WHERE id = ?4`
+      )
+      .bind(hash, salt, iterations, user.id),
+    db.prepare('DELETE FROM sessions WHERE user_id = ?1 AND id <> ?2').bind(user.id, sid),
+    db.prepare('DELETE FROM login_attempts WHERE key = ?1').bind(key),
+  ]);
+
+  return c.json({ ok: true });
+});
 
 export default auth;

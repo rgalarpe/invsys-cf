@@ -1,10 +1,15 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Pencil } from 'lucide-react';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { api } from '../api.js';
+import { useAuth } from '../auth.jsx';
 import { money, shortDateTime } from '../format.js';
 import { STATUS } from '../status.js';
+import ItemFormModal from '../components/ItemFormModal.jsx';
+import RestockForm from '../components/RestockForm.jsx';
+import VoidForm from '../components/VoidForm.jsx';
+import DenyModal from '../components/DenyModal.jsx';
 
 // Chart colors (same values as --accent-tint, --accent, --divider, --text-muted in styles.css)
 const TINT = '#C7CBFA';
@@ -77,12 +82,7 @@ function ConsumptionChart({ productId, refreshKey }) {
                 axisLine={false}
                 minTickGap={24}
               />
-              <YAxis
-                allowDecimals={false}
-                tick={{ fill: AXIS, fontSize: 12 }}
-                tickLine={false}
-                axisLine={false}
-              />
+              <YAxis allowDecimals={false} tick={{ fill: AXIS, fontSize: 12 }} tickLine={false} axisLine={false} />
               <Tooltip
                 cursor={{ fill: '#F5F6F9' }}
                 labelFormatter={labelFor}
@@ -138,7 +138,7 @@ function details(r) {
 
 const SIGN = { sold: '−', void: '−', restock: '+', create: '+' };
 
-function HistoryCard({ productId, refreshKey }) {
+function HistoryCard({ productId, refreshKey, isAdmin, busyId, actionError, onApprove, onDeny }) {
   const [type, setType] = useState('all');
   const [page, setPage] = useState(1);
   const [data, setData] = useState(null);
@@ -179,7 +179,11 @@ function HistoryCard({ productId, refreshKey }) {
         </div>
       </div>
 
-      {error && <div className="alert-danger" style={{ margin: '0 22px 16px' }} role="alert">{error}</div>}
+      {(error || actionError) && (
+        <div className="alert-danger" style={{ margin: '0 22px 16px' }} role="alert">
+          {error || actionError}
+        </div>
+      )}
 
       {!data && !error ? (
         <div className="empty">Loading…</div>
@@ -195,11 +199,13 @@ function HistoryCard({ productId, refreshKey }) {
                 <th className="r">Qty</th>
                 <th>By</th>
                 <th>Details</th>
+                {isAdmin && <th aria-label="Actions" />}
               </tr>
             </thead>
             <tbody>
               {items.map((r) => {
                 const chip = typeChip(r);
+                const pending = r.type === 'void' && r.void_status === 'pending';
                 return (
                   <tr key={`${r.src}-${r.id}`}>
                     <td className="muted">{shortDateTime(r.happened_at)}</td>
@@ -209,6 +215,30 @@ function HistoryCard({ productId, refreshKey }) {
                     </td>
                     <td>{r.by_name}</td>
                     <td className="muted">{details(r)}</td>
+                    {isAdmin && (
+                      <td>
+                        {pending && (
+                          <div className="row-actions">
+                            <button
+                              className="btn-secondary btn-sm"
+                              disabled={busyId === r.id}
+                              aria-label={`Approve void of ${r.quantity} units`}
+                              onClick={() => onApprove(r)}
+                            >
+                              Approve
+                            </button>
+                            <button
+                              className="btn-secondary btn-sm danger"
+                              disabled={busyId === r.id}
+                              aria-label={`Deny void of ${r.quantity} units`}
+                              onClick={() => onDeny(r)}
+                            >
+                              Deny
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -258,7 +288,7 @@ function SellForm({ item, onSold }) {
   }
 
   return (
-    <form className="card span-4" onSubmit={submit}>
+    <form className="card span-2" onSubmit={submit}>
       <h2 className="section-title">Mark sold</h2>
       <p className="muted" style={{ marginBottom: 14 }}>
         {available.toLocaleString()} unit{available === 1 ? '' : 's'} available to sell
@@ -278,12 +308,7 @@ function SellForm({ item, onSold }) {
         </label>
         <label className="field">
           <span>Note (optional)</span>
-          <input
-            className="input"
-            maxLength={200}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-          />
+          <input className="input" maxLength={200} value={note} onChange={(e) => setNote(e.target.value)} />
         </label>
         <button className="btn-primary" type="submit" disabled={busy || available === 0}>
           {busy ? 'Saving…' : 'Mark sold'}
@@ -297,9 +322,17 @@ function SellForm({ item, onSold }) {
 /* ---------------- Page ---------------- */
 export default function ItemDetail() {
   const { id } = useParams();
+  const { user } = useAuth();
+  const isAdmin = user.role === 'admin';
+
   const [item, setItem] = useState(null);
   const [error, setError] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [categories, setCategories] = useState([]);
+  const [editing, setEditing] = useState(false);
+  const [denying, setDenying] = useState(null);
+  const [busyId, setBusyId] = useState(null);
+  const [actionError, setActionError] = useState('');
 
   useEffect(() => {
     let ignore = false;
@@ -310,6 +343,44 @@ export default function ItemDetail() {
       .catch((e) => { if (!ignore) setError(e.status === 404 ? 'Item not found.' : e.message); });
     return () => { ignore = true; };
   }, [id]);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    api('/categories').then((d) => setCategories(d.items)).catch(() => {});
+  }, [isAdmin]);
+
+  // Re-fetch the item and refresh the chart and history
+  const reload = useCallback(async () => {
+    const d = await api(`/products/${id}`);
+    setItem(d.item);
+    setRefreshKey((k) => k + 1);
+  }, [id]);
+
+  const onChanged = (updated) => {
+    setItem(updated);
+    setRefreshKey((k) => k + 1);
+  };
+
+  async function approve(row) {
+    setActionError('');
+    setBusyId(row.id);
+    try {
+      await api(`/void-requests/${row.id}/approve`, { method: 'POST' });
+    } catch (e) {
+      setActionError(e.message);
+    }
+    try {
+      await reload(); // refresh even after an error so the screen shows the real state
+    } catch {
+      /* ignore */
+    }
+    setBusyId(null);
+  }
+
+  async function confirmDeny(reason) {
+    await api(`/void-requests/${denying.id}/deny`, { method: 'POST', body: { reason } });
+    await reload();
+  }
 
   const back = (
     <Link to="/inventory" className="back-link">
@@ -344,7 +415,14 @@ export default function ItemDetail() {
           <h1 className="page-title">{item.name}</h1>
           <p className="muted">{item.category}</p>
         </div>
-        <span className={`chip ${st.cls}`}>{st.label}</span>
+        <div className="page-actions">
+          <span className={`chip ${st.cls}`}>{st.label}</span>
+          {isAdmin && (
+            <button className="btn-secondary" onClick={() => setEditing(true)}>
+              <Pencil size={14} strokeWidth={1.75} /> Edit item
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bento">
@@ -366,15 +444,36 @@ export default function ItemDetail() {
         </div>
 
         <ConsumptionChart productId={item.id} refreshKey={refreshKey} />
-        <SellForm
-          item={item}
-          onSold={(updated) => {
-            setItem(updated);
-            setRefreshKey((k) => k + 1);
-          }}
+
+        <SellForm item={item} onSold={onChanged} />
+        <VoidForm item={item} isAdmin={isAdmin} onDone={onChanged} />
+        {isAdmin && <RestockForm item={item} onDone={onChanged} />}
+
+        <HistoryCard
+          productId={item.id}
+          refreshKey={refreshKey}
+          isAdmin={isAdmin}
+          busyId={busyId}
+          actionError={actionError}
+          onApprove={approve}
+          onDeny={(row) => { setActionError(''); setDenying(row); }}
         />
-        <HistoryCard productId={item.id} refreshKey={refreshKey} />
       </div>
+
+      {isAdmin && (
+        <>
+          <ItemFormModal
+            open={editing}
+            mode="edit"
+            item={item}
+            categories={categories}
+            onCategoryCreated={(c) => setCategories((prev) => [...prev, c])}
+            onClose={() => setEditing(false)}
+            onSaved={onChanged}
+          />
+          <DenyModal request={denying} onClose={() => setDenying(null)} onConfirm={confirmDeny} />
+        </>
+      )}
     </>
   );
 }
