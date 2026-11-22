@@ -1,0 +1,1 @@
+export const LOW_STOCK_THRESHOLD = 50; // below this = low stock; 0 = out of stock

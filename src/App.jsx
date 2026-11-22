@@ -4,6 +4,7 @@ import Layout from './components/Layout.jsx';
 import Login from './pages/Login.jsx';
 import InventoryPage from './pages/Inventory.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
+import ItemDetail from './pages/ItemDetail.jsx';
 
 function RequireAuth({ children }) {
   const { user, loading } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
         />
       </Route>
       <Route path="*" element={<Navigate to="/inventory" replace />} />
+      <Route path="/inventory/:id" element={<ItemDetail />} />
     </Routes>
   );
 }

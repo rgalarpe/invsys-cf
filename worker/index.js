@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import auth from './auth.js';
+import products, { categories } from './products.js';
 
 const app = new Hono();
 
@@ -9,5 +10,7 @@ app.get('/api/health', async (c) => {
 });
 
 app.route('/api/auth', auth);
+app.route('/api/products', products);
+app.route('/api/categories', categories);
 
 export default app;
