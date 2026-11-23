@@ -42,3 +42,5 @@ db/query.sql
 db/seed-dev2.sql
 db/seed-dev3.sql
 user.txt
+migrations/0002_hidden_users.sql
+db/seed-dev.sql
