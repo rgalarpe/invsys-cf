@@ -7,6 +7,7 @@ export default function ItemFormModal({
   open, mode, item, categories, onClose, onSaved, onCategoryCreated,
 }) {
   const ref = useRef(null);
+  const nameRef = useRef(null);
   const isEdit = mode === 'edit';
 
   const [name, setName] = useState('');
@@ -15,6 +16,7 @@ export default function ItemFormModal({
   const [price, setPrice] = useState('');
   const [qty, setQty] = useState('0');
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -27,6 +29,7 @@ export default function ItemFormModal({
       setPrice(isEdit ? (item.unit_price_cents / 100).toFixed(2) : '');
       setQty('0');
       setError('');
+      setNotice('');
       dlg.showModal();
     } else if (!open && dlg.open) {
       dlg.close();
@@ -36,6 +39,7 @@ export default function ItemFormModal({
   async function submit(e) {
     e.preventDefault();
     setError('');
+    setNotice('');
 
     const trimmed = name.trim();
     if (!trimmed) return setError('Name is required');
@@ -70,7 +74,17 @@ export default function ItemFormModal({
           });
 
       onSaved(d.item);
-      ref.current?.close();
+
+      if (isEdit) {
+        ref.current?.close();
+      } else {
+        // Stay open so several items can be added in a row
+        setNotice(`Added ${d.item.name}.`);
+        setName('');
+        setPrice('');
+        setQty('0');
+        nameRef.current?.focus();
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -90,7 +104,14 @@ export default function ItemFormModal({
 
         <label className="field">
           <span>Name</span>
-          <input className="input" maxLength={100} required value={name} onChange={(e) => setName(e.target.value)} />
+          <input
+            ref={nameRef}
+            className="input"
+            maxLength={100}
+            required
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </label>
 
         <label className="field">
@@ -137,10 +158,13 @@ export default function ItemFormModal({
           )}
         </div>
 
+        {notice && <div className="alert-success" role="status">{notice}</div>}
         {error && <div className="alert-danger" role="alert">{error}</div>}
 
         <div className="modal-actions">
-          <button type="button" className="btn-secondary" onClick={() => ref.current.close()}>Cancel</button>
+          <button type="button" className="btn-secondary" onClick={() => ref.current.close()}>
+            {isEdit ? 'Cancel' : 'Close'}
+          </button>
           <button className="btn-primary" type="submit" disabled={busy}>
             {busy ? 'Saving…' : isEdit ? 'Save changes' : 'Add item'}
           </button>

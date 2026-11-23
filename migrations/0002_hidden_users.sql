@@ -1,0 +1,2 @@
+-- Migration number: 0002 	 2026-11-23T02:44:26.243Z
+ALTER TABLE users ADD COLUMN is_hidden INTEGER NOT NULL DEFAULT 0;

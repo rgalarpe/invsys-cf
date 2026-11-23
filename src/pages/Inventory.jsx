@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { STATUS } from '../status.js';
 import { api } from '../api.js';
 import { useAuth } from '../auth.jsx';
@@ -31,13 +31,18 @@ export default function InventoryPage() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const q = useDebounced(search);
-  const [status, setStatus] = useState('all');
+  const [searchParams] = useSearchParams();
+  const initialStatus = searchParams.get('status');
+  const [status, setStatus] = useState(
+    ['in', 'low', 'out', 'void'].includes(initialStatus) ? initialStatus : 'all'
+  );
   const [category, setCategory] = useState('');
   const [categories, setCategories] = useState([]);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   // Page resets to 1 automatically whenever any filter changes
   const filterKey = `${q}|${status}|${category}`;
@@ -65,7 +70,7 @@ export default function InventoryPage() {
       .finally(() => { if (!ignore) setLoading(false); });
 
     return () => { ignore = true; };
-  }, [q, status, category, page]);
+  }, [q, status, category, page, reloadKey]);
 
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -194,7 +199,7 @@ export default function InventoryPage() {
           categories={categories}
           onCategoryCreated={(c) => setCategories((prev) => [...prev, c])}
           onClose={() => setAdding(false)}
-          onSaved={(created) => navigate(`/inventory/${created.id}`)}
+          onSaved={() => setReloadKey((k) => k + 1)}
         />
       )}
       {user.role === 'admin' && (

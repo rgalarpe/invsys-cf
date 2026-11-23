@@ -10,10 +10,10 @@ export default function Layout() {
   return (
     <div className="shell">
       <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-tile" aria-hidden="true" />
-          Inventory
-        </div>
+        <Link to="/inventory" className="brand" aria-label="Inventory home">
+          <img src="/favicon.svg" alt="" width="34" height="34" className="brand-tile" />
+          <span>Inventory</span>
+        </Link>
 
         <nav>
           {user.role === 'admin' && (

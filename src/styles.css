@@ -285,3 +285,18 @@ a.signout { text-decoration: none; }
   border-radius: var(--radius-control);
   padding: 12px 14px;
 }
+
+
+/* ---------- Dashboard ---------- */
+.card-link {
+  display: block; text-decoration: none; color: inherit;
+  transition: border-color 150ms ease-out, transform 150ms ease-out;
+}
+.card-link:hover { border-color: var(--accent-tint); transform: translateY(-1px); }
+.stat-note.warn { color: var(--warning-ink); }
+.stat-note.danger { color: var(--danger-ink); }
+
+/* ---------- Brand link ---------- */
+a.brand { text-decoration: none; border-radius: var(--radius-control); }
+a.brand:hover { color: var(--accent-ink); }
+.brand-tile { background: none; display: block; flex-shrink: 0; }

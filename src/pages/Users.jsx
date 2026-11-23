@@ -78,7 +78,7 @@ function Secret({ password, onDone }) {
 function CreateUser({ onCreated, onClose }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [role, setRole] = useState('user');
+  const [role, setRole] = useState('');
   const [password, setPassword] = useState(generatePassword());
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -114,7 +114,8 @@ function CreateUser({ onCreated, onClose }) {
       </label>
       <label className="field">
         <span>Role</span>
-        <select className="input" value={role} onChange={(e) => setRole(e.target.value)}>
+        <select className="input" required value={role} onChange={(e) => setRole(e.target.value)}>
+          <option value="" disabled>Select a role…</option>
           <option value="user">User</option>
           <option value="admin">Admin</option>
         </select>

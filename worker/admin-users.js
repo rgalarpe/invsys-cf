@@ -14,20 +14,25 @@ const parseId = (s) => {
   return Number.isInteger(n) && n > 0 ? n : null;
 };
 
+// Hidden accounts are invisible to every user-management route
+const visibleTarget = (db, id) =>
+  db.prepare('SELECT id, email FROM users WHERE id = ?1 AND is_hidden = 0').bind(id).first();
+
 // ---------- list ----------
 users.get('/', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT u.id, u.email, u.name, u.role, u.is_active, u.must_change_password, u.created_at,
-            cb.name AS created_by_name
+            CASE WHEN cb.is_hidden = 1 THEN NULL ELSE cb.name END AS created_by_name
        FROM users u
        LEFT JOIN users cb ON cb.id = u.created_by
+      WHERE u.is_hidden = 0
       ORDER BY u.created_at DESC, u.id DESC
       LIMIT 200`
   ).all();
   return c.json({ items: results });
 });
 
-// ---------- create ----------
+// ---------- create (role must be chosen explicitly) ----------
 users.post('/', async (c) => {
   const body = await c.req.json().catch(() => null);
   if (!body) return c.json({ error: 'Invalid request' }, 400);
@@ -53,7 +58,7 @@ users.post('/', async (c) => {
     )
       .bind(email, name, role, hash, salt, iterations, c.get('user').id)
       .first();
-    return c.json({ item: { ...row, created_by_name: c.get('user').name } }, 201);
+    return c.json({ item: row }, 201);
   } catch (e) {
     if (isUnique(e)) return c.json({ error: 'A user with that email already exists' }, 409);
     throw e;
@@ -68,14 +73,15 @@ users.patch('/:id', async (c) => {
   if (typeof body?.is_active !== 'boolean') return c.json({ error: 'Invalid request' }, 400);
   if (id === c.get('user').id) return c.json({ error: 'You cannot change your own account here' }, 400);
 
-  const flag = body.is_active ? 1 : 0;
   const db = c.env.DB;
-  const [upd] = await db.batch([
+  if (!(await visibleTarget(db, id))) return c.json({ error: 'User not found' }, 404);
+
+  const flag = body.is_active ? 1 : 0;
+  await db.batch([
     db.prepare('UPDATE users SET is_active = ?1 WHERE id = ?2').bind(flag, id),
     // Deactivating signs the user out everywhere, immediately
     db.prepare('DELETE FROM sessions WHERE user_id = ?1 AND ?2 = 0').bind(id, flag),
   ]);
-  if (upd.meta.changes === 0) return c.json({ error: 'User not found' }, 404);
   return c.json({ ok: true });
 });
 
@@ -89,7 +95,7 @@ users.post('/:id/reset-password', async (c) => {
   const body = await c.req.json().catch(() => null);
 
   const db = c.env.DB;
-  const target = await db.prepare('SELECT email FROM users WHERE id = ?1').bind(id).first();
+  const target = await visibleTarget(db, id);
   if (!target) return c.json({ error: 'User not found' }, 404);
 
   const problem = checkPassword(body?.password, { email: target.email });
@@ -105,7 +111,6 @@ users.post('/:id/reset-password', async (c) => {
       )
       .bind(hash, salt, iterations, id),
     db.prepare('DELETE FROM sessions WHERE user_id = ?1').bind(id),
-    // Also clears any login lockout for that email
     db
       .prepare("DELETE FROM login_attempts WHERE substr(key, 1, length(?1) + 1) = ?1 || '|'")
       .bind(target.email.toLowerCase()),
